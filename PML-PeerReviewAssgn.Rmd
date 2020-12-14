@@ -1,0 +1,141 @@
+---
+title: "PML-Week4Assgn"
+author: "Joe M - 12/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+## Turn off everything, turn it on when wanted
+knitr::opts_chunk$set(echo=FALSE, results= FALSE, fig.show='hide', message = FALSE, cache = TRUE)
+```
+```{r setup_Lib, include=FALSE}
+library(caret)                                     ## Lib for Machine Learning, GGplot 2 and Lattice also loaded
+library(randomForest)
+library(readr)                                     ## used to read URL CSVs
+
+set.seed(61577)                                    ## In case any randomness is done
+```
+
+# Executive Summary 
+The work performed here is in regards to the prediction work required for week 4's assignment for the Practical Machine Learning.  
+
+For this exercise, we will use the information used in the paper *"Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements"*. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. This analysis is done to see if how well a model can be made to detect what classification of exercise was performed.
+
+Possible outcome include the following:
+
+    Class A: exactly according to the specification (the correct way)
+    Class B: throwing the elbows to the front (one of the common mistakes)
+    Class C: lifting the dumbbell only halfway (one of the common mistakes)
+    Class D: lowering the dumbbell only halfway (one of the common mistakes)
+    Class E: throwing the hips to the front (one of the common mistakes)
+
+
+**Note**: Analysis shown first, the coding to perform these steps is displayed at the end.
+
+## Process
+-- Import 
+The files were downloaded to the workign directory, and imported using the read.csv command.
+```{r get_Data}
+## Data was saved in the working Directory to simplify import -- ns.strings used to clean files on import
+predmachlearn.train <- read.csv("pml-training.csv", na.strings = c("NA", "#DIV/0!", ""))
+predmachlearn.valid  <- read.csv("pml-testing.csv", na.strings = c("NA", "#DIV/0!", ""))
+```
+
+Check dimensions of the Training set to make sure we got data, looking at the first few records give insight on the file data
+```{r get_Data_Check, results= TRUE}
+dim(predmachlearn.train)
+## head(predmachlearn.train)                                                  ## Removed to make it easier on the reader
+```
+160 variables and missing data (NAs). This will need to be cleaned up in order to determine what can be used.
+
+-- Model/Feature Selection  
+Remove bad columns. These are those with < 50% data, descriptive columns.
+```{r get_MF_Review, results= TRUE}
+tSet <- createDataPartition(predmachlearn.train$classe, p = 0.8, list = FALSE)   ## Break apart traing set 
+sTrain <- predmachlearn.train[tSet, ]                                            ## New Train with 80%
+sTest <- predmachlearn.train[-tSet, ]                                            ## New Test set with 20%
+
+# exclude columns with 50% ore more missing values exclude descriptive
+eLen <- sapply(sTrain, function(x) {sum(!(is.na(x) | x == ""))})                 ## Determine the amount of data
+nzColNames <- names(eLen[eLen < 0.5 * length(sTrain$classe)])                    ## Less than 50% data, remove
+
+dColNames <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2",  ## Entry description info
+               "cvtd_timestamp", "new_window", "num_window")                     ## Remove to take out bad Cols
+
+eCols <- c(dColNames, nzColNames)                                                ## combine the list of cols
+
+trainData <- sTrain[, !names(sTrain) %in% eCols]                                 ## Remove bad columns from  set
+testData <- sTest[, !names(sTest) %in% eCols]                                    ## Remove the same from the set
+```
+
+-- Training  
+Random Forest training will be performed to include cross validation. The Random Forrest library is used instead of the RF Caret for more controls 
+```{r get_T_CreateModel}
+##head(trainData)
+rfMod <- randomForest(as.factor(classe) ~ ., data = trainData, importance = TRUE, ntrees = 10) ## Create model
+```
+
+-- Validation  
+Apply the model to the training set
+```{r get_V_Train, results= TRUE}
+trPred <- predict(rfMod, trainData)                                              ## Create Training Predictions
+print(confusionMatrix(trPred, as.factor(trainData$classe)))                      ## Display Confusion Matrix 
+```
+As we can see the accuracy is spot on (as expected)
+
+Applying the model to the test subset will show how well the model fits the data
+```{r get_V_Test, results= TRUE}
+tePred <- predict(rfMod, testData)                                               ## Create Test Predictions
+print(confusionMatrix(tePred, as.factor(testData$classe)))                       ## Display Confusion Matrix 
+
+```
+
+Finally, we can apply the model to the validation set to get a feel for how the model works with the out of set data
+```{r get_V_Val, results=TRUE}
+vPred <- predict(rfMod, predmachlearn.valid)                                     ## Apply Predictions
+vPred                                                                            ## Display Results
+```
+
+## Conclusion
+This exercise posed a few challenges. From trying to figure out why the confusion matrices were not working to model training.  
+After reviewing course notes and web crawling, it was determined that factorization was causing an issue on the command. Once  
+figured out, the project was pretty straight forward.  
+
+The model was created from an 80% of the training data, then tested against the other 20%. The Random Forrest Method was used for  
+its built in cross validation. As the data contained both descriptors and continuous data, the variables were scrubbed to remove  
+anything that would cause computation errors, or bad connections. Once this was done, the steps outlined in the class were followed. 
+ 
+As the confusion matrices outline, the model performed very well, 100% accuracy on the training data as well as a 95.5% accuracy on  
+the testing set. This leads me to believe the predictions for the out-of-sample validation results are close to the same accuracy.  
+As the validation set is set up as an unsupervised set, the actual answers could not be validated.
+
+
+## Code
+-- Setup
+```{r setup_Lib, echo=TRUE}
+```
+-- import 
+```{r get_Data, echo=TRUE}
+```
+```{r get_Data_Check, echo=TRUE}
+```
+
+-- Model/feature selection
+```{r get_MF_Review, echo=TRUE}
+```
+
+-- Training 
+```{r get_T_CreateModel, echo=TRUE}
+```
+
+-- Validation
+```{r get_V_Train, echo= TRUE}
+```
+```{r get_V_Test, echo= TRUE}
+```
+```{r get_V_Val, echo= TRUE}
+```
+
+### Citation
+Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.
+Cited by 2 (Google Scholar)
